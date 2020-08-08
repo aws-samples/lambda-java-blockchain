@@ -1,0 +1,217 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Blockchain application with Amazon Managed Blockchain - lambda-java-blockchain
+Globals:
+  Api:
+    EndpointConfiguration: REGIONAL
+    OpenApiVersion: '2.0'
+
+Parameters:
+  AMBREGION:
+    Type: String
+    Description: Region of AMB
+  NETWORKID:
+    Type: String
+    Description: Network ID
+  MEMBERNAME:
+    Type: String
+    Description: Name of the Member
+  MEMBERID:
+    Type: String
+    Description: Member ID
+  PEERID:
+    Type: String
+    Description: Peer ID
+  CAENDPOINT:
+    Type: String
+    Description: CA Endpoint
+  ADMINUSER:
+    Type: String
+    Description: Admin username
+  ADMINPWD:
+    Type: String
+    NoEcho: true
+    Description: Admin Password
+  LAMBDAUSER:
+    Type: String
+    Description: New Fabric userid
+  LAMBDAUSERPWD:
+    Type: String
+    Description: New Fabric password
+  ORDERERENDPOINT:
+    Type: String
+    Description: Orderer Endpoint
+  PEERENDPOINT:
+    Type: String
+    Description: Peer Endpoint
+  CHANNELNAME:
+    Type: String
+    Description: Default Chanel Name
+  CHAINCODENAME:
+    Type: String
+    Description: Default Chaincode Name
+  AMBVpcEndpointServiceName:
+    Type: String
+    Description: The VPC endpoint service name of the Amazon Managed Blockchain network
+
+Resources:
+  BlockchainLambdaSecretsManagerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action:
+              - "secretsmanager:CreateSecret"
+              - "secretsmanager:DescribeSecret"
+              - "secretsmanager:GetResourcePolicy"
+              - "secretsmanager:GetSecretValue"
+              - "secretsmanager:ListSecretVersionIds"
+            Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:fabric/orgs/${MEMBERNAME}/*'
+
+  BlockchainLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref BlockchainLambdaSecretsManagerPolicy
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+
+  BlockchainLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: com.lambdajavablockchain.StreamLambdaHandler::handleRequest
+      Runtime: java8
+      CodeUri: .
+      MemorySize: 1024
+      Role: !GetAtt BlockchainLambdaRole.Arn
+      Timeout: 30
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref BlockchainLambdaBaseSecurityGroup
+        SubnetIds:
+          - !Ref BlockchainLambdaPrivateSubnet
+      Environment:
+        Variables:
+          AMB_REGION: !Ref AMBREGION
+          NETWORK_ID: !Ref NETWORKID
+          MEMBER_NAME: !Ref MEMBERNAME
+          MEMBER_ID: !Ref MEMBERID
+          PEER_ID: !Ref PEERID
+          CA_ENDPOINT: !Ref CAENDPOINT
+          ADMIN_USER: !Ref ADMINUSER
+          ADMIN_PWD: !Ref ADMINPWD
+          LAMBDA_USER: !Ref LAMBDAUSER
+          LAMBDA_USER_PWD: !Ref LAMBDAUSERPWD
+          ORDERER_ENDPOINT: !Ref ORDERERENDPOINT
+          PEER_ENDPOINT: !Ref PEERENDPOINT
+          CHANNEL_NAME: !Ref CHANNELNAME
+          CHAINCODE_NAME: !Ref CHAINCODENAME
+      Events:
+        EnrollUser:
+          Type: HttpApi
+          Properties:
+            Path: /enroll-lambda-user
+            Method: POST
+            PayloadFormatVersion: "1.0"
+        QueryChaincode:
+          Type: HttpApi
+          Properties:
+            Path: /query
+            Method: GET
+            PayloadFormatVersion: "1.0"
+        InvokeChaincode:
+          Type: HttpApi
+          Properties:
+            Path: /invoke
+            Method: POST
+            PayloadFormatVersion: "1.0"
+        # Endpoints for 'fabcar' chaincode
+        QueryCar:
+          Type: HttpApi
+          Properties:
+            Path: /cars/{carId}
+            Method: GET
+            PayloadFormatVersion: "1.0"
+        CreatCar:
+          Type: HttpApi
+          Properties:
+            Path: /cars
+            Method: POST
+            PayloadFormatVersion: "1.0"
+
+  BlockchainLambdaVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.10.0.0/16
+      EnableDnsSupport: True
+      EnableDnsHostnames: True
+      InstanceTenancy: default
+      Tags:
+        - Key: BlockchainLambdaVPC
+          Value: VPC
+
+  BlockchainLambdaPrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BlockchainLambdaVPC
+      CidrBlock: 10.10.0.0/18
+      Tags:
+        - Key: BlockchainLambdaVPC
+          Value: PrivateSubnet
+
+  BlockchainLambdaBaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Base Security Group
+      VpcId: !Ref BlockchainLambdaVPC
+      Tags:
+        - Key: BlockchainLambdaVPC
+          Value: BaseSecurityGroup
+
+  BlockchainLambdaBaseSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: -1
+      FromPort: -1
+      GroupId: !GetAtt BlockchainLambdaBaseSecurityGroup.GroupId
+      ToPort: -1
+      SourceSecurityGroupId: !GetAtt BlockchainLambdaBaseSecurityGroup.GroupId
+
+  ### VPC Endpoints ###
+  ManagedBlockchainVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref BlockchainLambdaVPC
+      PrivateDnsEnabled: True
+      ServiceName: !Ref AMBVpcEndpointServiceName
+      VpcEndpointType: Interface
+      SubnetIds: [!Ref BlockchainLambdaPrivateSubnet]
+      SecurityGroupIds: [!Ref BlockchainLambdaBaseSecurityGroup]
+
+  SecretsManagerVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref BlockchainLambdaVPC
+      PrivateDnsEnabled: True
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.secretsmanager"
+      VpcEndpointType: Interface
+      SubnetIds: [!Ref BlockchainLambdaPrivateSubnet]
+      SecurityGroupIds: [!Ref BlockchainLambdaBaseSecurityGroup]
+
+
+Outputs:
+  BlockchainLambdaApi:
+    Description: URL for Amazon Managed Blockchain Lambda Function
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/'
+    Export:
+      Name: BlockchainLambdaApi
