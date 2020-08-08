@@ -19,7 +19,7 @@ The following diagram illustrates the architecture of the solution.
 
 ![Architecture diagram](Solution_Architecture_Diagram.png)
 
-## Step 1: Configure the project 
+## Step 1 - Configure the project
 
 Clone the project from GitHub
 
@@ -36,7 +36,7 @@ The two main dependencies used in the project are:
 
 Note: this project is built using the [Spring Boot 2 quick start example](https://github.com/awslabs/aws-serverless-java-container/wiki/Quick-start---Spring-Boot2) 
 
-## Step 2: Build and deploy the serverless stack using AWS SAM CLI
+## Step 2 - Build and deploy the serverless stack using AWS SAM CLI
 
 #### Copy TLS certificate to project's resrouces folder
 
@@ -133,7 +133,7 @@ You can also retrieve the URL on the [AWS CloudFormation](https://console.aws.am
 
 On this sample project, the URL of the API is publicly accessible for testing purposes. In your own application, you should protect your API; for example, by integrating with [Amazon Cognito](https://aws.amazon.com/cognito/) user pools. For more information about API access, see [Controlling and managing access to APIs in API Gateway](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-control-access-to-api.html).
 
-## Step 3: Register and enroll lambdaUser with the Fabric CA using the SDK
+## Step 3 - Register and enroll lambdaUser with the Fabric CA using the SDK
 Call the `/enroll-lambda-user` endpoint on API-Gateway to start the enrollment process for `lambdaUser`.
 
 ```bash
@@ -147,7 +147,7 @@ response
 lambdaUser registered and enrolled successfully
 ```
 
-## Step 4: Test the application and interact with Managed Blockchain
+## Step 4 - Test the application and interact with Managed Blockchain
 You are now ready to interact with the chaincode `mycc` created in Step 7 of [Get Started Creating a Hyperledger Fabric Blockchain Network Using Amazon Managed Blockchain](https://docs.aws.amazon.com/managed-blockchain/latest/managementguide/managed-blockchain-get-started-tutorial.html).
 
 Let's query the balance of account a. Run curl command on your API URL and send a `GET /query` request as follows:
@@ -176,7 +176,7 @@ $ curl -s -X GET "${API_URL}/query?chaincodeName=mycc&functionName=query&args=a"
 80
 ```
 
-## (Optional) Step 5: Querying other chaincodes 
+## (Optional) Step 5 - Querying other chaincodes
 
 #### Fabcar chaincode examples
 This section provides few examples of reading and writing to the `fabcar` chaincode from fabric-samples.
